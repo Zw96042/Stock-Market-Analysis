@@ -8,7 +8,7 @@ import sys
 window = tk.Tk()
 window.title("Stock Info")
 
-fig = plt.Figure(figsize=(8, 6))
+fig = plt.Figure(figsize=(4, 3))
 ax = fig.add_subplot(111)
 stock_symbol = input("Please provide the ticker symbol for the stock: ")  # Example stock symbol
 # Check if the stock symbol is valid
@@ -20,7 +20,7 @@ try:
     # Retrieve stock data from Yahoo Finance
     stock_data = yf.download(stock_symbol, start="2023-01-01", end="2023-05-31")
 
-    window_size = float(input("Enter the window size for the SMA: "))
+    window_size = int(input("Enter the window size for the SMA: "))
 
     # Calculate the SMA for the specified window size
     stock_data['SMA'] = stock_data['Close'].rolling(window=window_size).mean()
