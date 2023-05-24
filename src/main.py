@@ -32,12 +32,23 @@ keywords = [
 
 def generate_graph():
     global canvas  # Access the global canvas variable
-
+    if not stock_var.get():
+        return messagebox.showerror("No Stock Symbols", "Please enter at least one stock symbol.")
+    
     stock_symbols = stock_var.get().split(',')
-    window_size = int(window_size_entry.get())
+    
+    
+    try:
+        window_size = int(window_size_entry.get())
+    except ValueError:
+        return messagebox.showerror("Invalid Input", "Please enter a valid window size.")
+
     start_date = start_date_entry.get_date().strftime('%Y-%m-%d')
     end_date = end_date_entry.get_date().strftime('%Y-%m-%d')
 
+    if start_date == end_date:
+        return messagebox.showerror("Invalid Dates", "Start and end dates cannot be the same.")
+    
 
     # Create a figure and subplot for the graph
     fig, ax = plt.subplots(figsize=(8, 6))
@@ -46,15 +57,16 @@ def generate_graph():
     stock_info = {}
 
     for symbol in stock_symbols:
-        # Retrieve stock data from Yahoo Finance
         stock_data = yf.download(symbol, start=start_date, end=end_date)
-
+        if stock_data.empty:
+            return messagebox.showerror("Invalid Stock Symbol", f"The stock symbol '{symbol}' is invalid.")
+            
         # Retrieve stock information
         stock = yf.Ticker(symbol)
         info = stock.info
 
         # Calculate the SMA for the specified window size
-        stock_data['SMA'] = stock_data['Close'].rolling(window=window_size).mean()
+        stock_data['SMA'] = stock_data['Close'].rolling(window=window_size).mean() 
 
         # Plot the closing price and SMA
         ax.plot(stock_data.index, stock_data['Close'], label=f"{info.get('longName', '')} Closing Price")
