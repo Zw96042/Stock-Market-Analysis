@@ -2,71 +2,165 @@ import yfinance as yf
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+import matplotlib.dates as mdates
 import tkinter as tk
-import sys
+from tkinter import messagebox, OptionMenu
+from tkcalendar import DateEntry
+import pprint
+import datetime
+
+canvas = None  # Global variable for the canvas
+keywords = [
+    'symbol', 'name', 'price', 'marketCap', 'dividendYield', 'trailingPE', 'forwardPE', 
+    'previousClose', 'open', 'dayLow', 'dayHigh', 'regularMarketPreviousClose', 
+    'regularMarketOpen', 'regularMarketDayLow', 'regularMarketDayHigh', 'dividendRate', 
+    'beta', 'volume', 'regularMarketVolume', 'averageVolume', 'averageVolume10days', 'bid', 
+    'ask', 'bidSize', 'askSize', 'fiftyTwoWeekLow', 'fiftyTwoWeekHigh', 'trailingAnnualDividendRate', 
+    'trailingAnnualDividendYield', 'currency', 'enterpriseValue', 'profitMargins', 'floatShares', 
+    'sharesOutstanding', 'sharesShort', 'sharesShortPriorMonth', 'heldPercentInsiders', 
+    'heldPercentInstitutions', 'shortRatio', 'bookValue', 'priceToBook', 'earningsQuarterlyGrowth', 
+    'netIncomeToCommon', 'trailingEps', 'forwardEps', 'pegRatio', 'enterpriseToRevenue', 
+    'enterpriseToEbitda', '52WeekChange', 'SandP52WeekChange', 'exchange', 'currentPrice', 
+    'targetHighPrice', 'targetLowPrice', 'targetMeanPrice', 'targetMedianPrice', 
+    'recommendationMean', 'recommendationKey', 'numberOfAnalystOpinions', 'totalCash', 
+    'totalCashPerShare', 'ebitda', 'totalDebt', 'quickRatio', 'currentRatio', 'totalRevenue', 
+    'debtToEquity', 'revenuePerShare', 'returnOnAssets', 'returnOnEquity', 'grossProfits', 
+    'freeCashflow', 'operatingCashflow', 'earningsGrowth', 'revenueGrowth', 'grossMargins', 
+    'ebitdaMargins', 'operatingMargins', 'trailingPegRatio'
+]
+
+
+def generate_graph():
+    global canvas  # Access the global canvas variable
+
+    stock_symbols = stock_var.get().split(',')
+    window_size = int(window_size_entry.get())
+    start_date = start_date_entry.get_date().strftime('%Y-%m-%d')
+    end_date = end_date_entry.get_date().strftime('%Y-%m-%d')
+
+
+    # Create a figure and subplot for the graph
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    global stock_info  # Dictionary to store stock information
+    stock_info = {}
+
+    for symbol in stock_symbols:
+        # Retrieve stock data from Yahoo Finance
+        stock_data = yf.download(symbol, start=start_date, end=end_date)
+
+        # Retrieve stock information
+        stock = yf.Ticker(symbol)
+        info = stock.info
+
+        # Calculate the SMA for the specified window size
+        stock_data['SMA'] = stock_data['Close'].rolling(window=window_size).mean()
+
+        # Plot the closing price and SMA
+        ax.plot(stock_data.index, stock_data['Close'], label=f"{info.get('longName', '')} Closing Price")
+        ax.plot(stock_data.index, stock_data['SMA'], label=f"{info.get('longName', '')} SMA {window_size}")
+
+        stock_data.reset_index(inplace=True)
+
+        # Store stock information in the dictionary
+        stock_info[symbol] = info
+
+    # Set the x-axis label and title
+    ax.set_xlabel('Date')
+    ax.set_title(f'Stock Prices with SMA {window_size} Trend')
+    ax.legend()
+
+    date_format = mdates.DateFormatter('%b %d')  # Specify the desired date format
+    ax.xaxis.set_major_formatter(date_format)
+
+
+
+    # Clear the previous graph from the canvas
+    if canvas:
+        canvas.get_tk_widget().destroy()
+
+    # Create a new canvas to display the graph
+    canvas = FigureCanvasTkAgg(fig, master=display_frame)
+    canvas.draw()
+    canvas.get_tk_widget().grid(row=1, columnspan=2)
+
+    # Update the dropdown menu with the stock information
+    info_dropdown['menu'].delete(0, 'end')  # Clear previous options
+
+    for symbol, info in stock_info.items():
+        # Create a label for each stock with relevant information
+        label = f"{symbol}: {info.get('longName', '')}"
+        info_dropdown['menu'].add_command(label=label, command=tk._setit(info_var, symbol))
+
+    # Update the selected option in the dropdown menu
+    info_var.set('')  # Reset the selected option
+
+
+def show_stock_info(*args):
+    selected_option = info_var.get()
+    print(info_var.get())
+    selected_option = stock_info.get(selected_option)
+    if selected_option:
+        selected_keywords = [selected_option]
+        selected_keywords = selected_keywords[0]  # Assuming selected_keywords is a list with a single dictionary
+        filtered_data = {key: value for key, value in selected_keywords.items() if key in keywords or key.lower() in keywords}
+        formatted_data = pprint.pformat(filtered_data)
+        print(formatted_data)
+        messagebox.showinfo("Stock Info", formatted_data)
+            
+
+    else:
+        selected_keywords = []
+    # if selected_option:
+        
 
 window = tk.Tk()
 window.title("Stock Info")
 
-fig = plt.Figure(figsize=(4, 3))
-ax = fig.add_subplot(111)
-stock_symbol = input("Please provide the ticker symbol for the stock: ")  # Example stock symbol
-# Check if the stock symbol is valid
-try:
-    stock = yf.Ticker(stock_symbol)
-    info = stock.info
-    print(f"Stock symbol '{stock_symbol}' is valid.")
-    
-    # Retrieve stock data from Yahoo Finance
-    stock_data = yf.download(stock_symbol, start="2023-01-01", end="2023-05-31")
+# Create a frame for the input section
+input_frame = tk.Frame(window)
+input_frame.pack(pady=10)
 
-    window_size = int(input("Enter the window size for the SMA: "))
+# Stock Symbol Label and Entry
+symbol_label = tk.Label(input_frame, text="Stock Symbols (separated by comma):")
+symbol_label.grid(row=0, column=0)
+stock_var = tk.StringVar()
+symbol_entry = tk.Entry(input_frame, textvariable=stock_var)
+symbol_entry.grid(row=0, column=1)
 
-    # Calculate the SMA for the specified window size
-    stock_data['SMA'] = stock_data['Close'].rolling(window=window_size).mean()
+# Window Size Label and Entry
+window_size_label = tk.Label(input_frame, text="Window Size:")
+window_size_label.grid(row=1, column=0)
+window_size_entry = tk.Entry(input_frame)
+window_size_entry.grid(row=1, column=1)
 
-    # Reset the index to make the date column accessible
-    stock_data.reset_index(inplace=True)
+# Start Date Label and DateEntry
+start_date_label = tk.Label(input_frame, text="Start Date:")
+start_date_label.grid(row=0, column=2)
+start_date_entry = DateEntry(input_frame, date_pattern='yyyy-mm-dd')
+start_date_entry.grid(row=0, column=3)
 
-    print(info.get('longName') or info.get('shortName'))
-except:
-    print(f"Ticker symbol '{stock_symbol}' is not valid.")
-    sys.exit(1)
+# End Date Label and DateEntry
+end_date_label = tk.Label(input_frame, text="End Date:")
+end_date_label.grid(row=1, column=2)
+end_date_entry = DateEntry(input_frame, date_pattern='yyyy-mm-dd')
+end_date_entry.grid(row=1, column=3)
 
+# Generate Graph Button
+generate_button = tk.Button(window, text="Generate Graph", command=generate_graph)
+generate_button.pack(pady=10)
 
-# Graph
-# Plot the closing price and SMA
-ax.plot(stock_data['Date'], stock_data['Close'], label='Closing Price')
-ax.plot(stock_data['Date'], stock_data['SMA'], label=f'SMA {window_size}')
+# Create a frame for the stock info and graph display
+display_frame = tk.Frame(window)
+display_frame.pack()
 
-# Determine the trend based on the SMA relationship
-for i in range(window_size, len(stock_data)):
-    if stock_data['SMA'].iloc[i] > stock_data['SMA'].iloc[i - 1]:
-        ax.scatter(stock_data['Date'].iloc[i], stock_data['Close'].iloc[i], color='green', marker='^')
-    else:
-        ax.scatter(stock_data['Date'].iloc[i], stock_data['Close'].iloc[i], color='red', marker='v')
+# Stock Info Dropdown
+info_label = tk.Label(display_frame, text="Stock Information:")
+info_label.grid(row=0, column=0)
+info_var = tk.StringVar()
+info_var.trace('w', show_stock_info)  # Call show_stock_info when the dropdown selection changes
+info_dropdown = OptionMenu(display_frame, info_var, "")
+info_dropdown.grid(row=0, column=1)
 
-ax.set_xlabel('Date')
-ax.set_ylabel('Price')
-ax.set_title(f'Stock Price with SMA {window_size} Trend')
-ax.legend()
-
-# Create a FigureCanvasTkAgg widget
-canvas = FigureCanvasTkAgg(fig, master=window)
-canvas.draw()
-
-# Place the canvas in the Tkinter window
-canvas.get_tk_widget().pack()
-
-
-# Info
-keywords = ['symbol', 'name', 'price', 'marketCap', 'dividendYield', 'trailingPE', 'forwardPE', 'previousClose', 'open', 'dayLow', 'dayHigh', 'regularMarketPreviousClose', 'regularMarketOpen', 'regularMarketDayLow', 'regularMarketDayHigh', 'dividendRate', 'beta', 'volume', 'regularMarketVolume', 'averageVolume', 'averageVolume10days', 'bid', 'ask', 'bidSize', 'askSize', 'fiftyTwoWeekLow', 'fiftyTwoWeekHigh', 'trailingAnnualDividendRate', 'trailingAnnualDividendYield', 'currency', 'enterpriseValue', 'profitMargins', 'floatShares', 'sharesOutstanding', 'sharesShort', 'sharesShortPriorMonth', 'heldPercentInsiders', 'heldPercentInstitutions', 'shortRatio', 'bookValue', 'priceToBook', 'earningsQuarterlyGrowth', 'netIncomeToCommon', 'trailingEps', 'forwardEps', 'pegRatio', 'enterpriseToRevenue', 'enterpriseToEbitda', '52WeekChange', 'SandP52WeekChange', 'exchange', 'currentPrice', 'targetHighPrice', 'targetLowPrice', 'targetMeanPrice', 'targetMedianPrice', 'recommendationMean', 'recommendationKey', 'numberOfAnalystOpinions', 'totalCash', 'totalCashPerShare', 'ebitda', 'totalDebt', 'quickRatio', 'currentRatio', 'totalRevenue', 'debtToEquity', 'revenuePerShare', 'returnOnAssets', 'returnOnEquity', 'grossProfits', 'freeCashflow', 'operatingCashflow', 'earningsGrowth', 'revenueGrowth', 'grossMargins', 'ebitdaMargins', 'operatingMargins', 'trailingPegRatio']
-
-# Create labels for filtered info
-for key, value in info.items():
-    if any(keyword in key.lower() for keyword in keywords):
-        label_text = f"{key}: {value}"
-        label = tk.Label(window, text=label_text)
-        label.pack()
-
+# Run the Tkinter event loop
 window.mainloop()
